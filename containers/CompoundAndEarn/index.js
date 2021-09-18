@@ -53,7 +53,7 @@ const CompoundAndEarn = () => {
     if(userDeprecatedPools.length > 0 && !loadedDeprecated && sortedUserPools){
       let newArray = [...lastSnowballInfo];
       userDeprecatedPools.forEach((pool) => {
-        newArray.unshift(pool);
+        newArray.push(pool);
       })
       setLastSnowballInfo(newArray);
       setFirstSnowballInfo(newArray);
@@ -73,7 +73,7 @@ const CompoundAndEarn = () => {
       return
     }
 
-    if(!sortedUserPools){
+    if(sortedUserPools){
       const sortedData = sortingByUserPool(type, userPools);
       setLastSnowballInfo(sortedData);
       setFirstSnowballInfo(sortedData);
