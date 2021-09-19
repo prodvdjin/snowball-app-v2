@@ -40,26 +40,44 @@ const CompoundAndEarn = () => {
   const { account } = useWeb3React();
   const { getLastSnowballInfo } = useAPIContext();
   const snowballInfoQuery = getLastSnowballInfo();
+  
   const { userPools, userDeprecatedPools, loadedDeprecated,
-    sortedUserPools,setLoadedDeprecated,setSortedUserPools } = useCompoundAndEarnContract();
+    sortedUserPools,setLoadedDeprecated,setSortedUserPools,
+    setUserPools } = useCompoundAndEarnContract();
 
+  const [modal, setModal] = useState({ open: false, title: '', address:'' });
   const [search, setSearch] = useState('');
   const [type, setType] = useState('apy');
   const [userPool, setPool] = useState('all');
   const [lastSnowballInfo, setLastSnowballInfo] = useState([]);
-  const [firstSnowballInfo, setFirstSnowballInfo] = useState([]);
+  const [lastSnowballModifiedInfo, setLastSnowballModifiedInfo] = useState([]);
+  const [filterDataByProtocol, setFilterDataByProtocol] = useState([]);
+  const [loadedSort, setLoadedSort] = useState(false);
+
+  //reset state when index opened
+  useEffect(()=>{
+    if(!loadedSort){
+      setSortedUserPools(false);
+      setLoadedSort(true);
+    }
+  },[loadedSort,setSortedUserPools])
 
   useEffect(() => {
     if(userDeprecatedPools.length > 0 && !loadedDeprecated && sortedUserPools){
-      let newArray = [...lastSnowballInfo];
+      let newArray = [...userPools];
       userDeprecatedPools.forEach((pool) => {
-        newArray.push(pool);
+        //check if it's not duplicated
+        if(userPools.indexOf(
+          (element)=> element.address.toLowerCase() === pool.address.toLowerCase()
+        ) === -1){
+          newArray.push(pool);
+        }
       })
-      setLastSnowballInfo(newArray);
-      setFirstSnowballInfo(newArray);
       setLoadedDeprecated(true);
+      setSortedUserPools(false);
+      setUserPools(newArray);
     }
-     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[userDeprecatedPools,loadedDeprecated,sortedUserPools]);
 
   useEffect(() => {
@@ -69,23 +87,23 @@ const CompoundAndEarn = () => {
       let sortedData = [...poolsInfo]
       sortedData = sortedData.sort((a, b) => b.gaugeInfo.fullYearlyAPY - a.gaugeInfo.fullYearlyAPY);
       setLastSnowballInfo(sortedData);
-      setFirstSnowballInfo(sortedData);
       return
     }
 
-    if(sortedUserPools){
+    if(!sortedUserPools){
       const sortedData = sortingByUserPool(type, userPools);
+      setLastSnowballModifiedInfo(sortedData);
       setLastSnowballInfo(sortedData);
-      setFirstSnowballInfo(sortedData);
       setSortedUserPools(true);
-      setLoadedDeprecated(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snowballInfoQuery, userPools, account, sortedUserPools]);
 
   const handleSearch = (value) => {
-    let filterData = firstSnowballInfo.length
-        ? [...firstSnowballInfo]
+    let filterData = filterDataByProtocol.length
+      ? [...filterDataByProtocol]
+      : lastSnowballModifiedInfo.length
+        ? [...lastSnowballModifiedInfo]
         : [...snowballInfoQuery.data?.LastSnowballInfo?.poolsInfo];
 
     const splittedValue = value.split(' ');
@@ -95,109 +113,59 @@ const CompoundAndEarn = () => {
       );
     });
 
-    filterData = sortingByType(type, filterData);
+    let sortedData = sortingByType(type, filterData);
     if (account) {
-      filterData = sortingByUserPool(type, filterData);
-    }
+      sortedData = sortingByUserPool(type, filterData);
+    }    
 
-    if (userPool === 'myPools') {
-      const filteredDataWithTokensToInvested = filterData.filter((item) => {
-        const [actionType] = getProperAction(item, null, item.userLPBalance, item.usdValue);
-        return actionType === 'Deposit';
-      });
-      const filteredDataWithDepositLP = filterData.filter(
-        (item) => item.usdValue > 0
-      );
-      filterData = [
-        ...filteredDataWithDepositLP,
-        ...filteredDataWithTokensToInvested,
-      ];
-    } else if (userPool !== 'all') {
-      filterData = filterData.filter((item) =>
-        item.source.toLowerCase().includes(userPool)
-      );
-    }
-    filterData = sortingByUserPool(type, filterData);
-
-    setLastSnowballInfo(filterData);
+    setLastSnowballInfo(sortedData);
     setSearch(value);
   };
 
   const handleCancelSearch = () => {
-    let filterData = firstSnowballInfo.length
-        ? [...firstSnowballInfo]
+    let filterData = filterDataByProtocol.length
+      ? [...filterDataByProtocol]
+      : lastSnowballModifiedInfo.length
+        ? [...lastSnowballModifiedInfo]
         : [...snowballInfoQuery.data?.LastSnowballInfo?.poolsInfo];
 
-    filterData = sortingByType(type, filterData);
+    let sortedData = sortingByType(type, filterData);
     if (account) {
-      filterData = sortingByUserPool(type, filterData);
-    }
+      sortedData = sortingByUserPool(type, filterData);
+    }    
 
-    if (userPool === 'myPools') {
-      const filteredDataWithTokensToInvested = filterData.filter((item) => {
-        const [actionType] = getProperAction(item, null, item.userLPBalance, item.usdValue);
-        return actionType === 'Deposit';
-      });
-      const filteredDataWithDepositLP = filterData.filter(
-        (item) => item.usdValue > 0
-      );
-      filterData = [
-        ...filteredDataWithDepositLP,
-        ...filteredDataWithTokensToInvested,
-      ];
-    } else if (userPool !== 'all') {
-      filterData = filterData.filter((item) =>
-        item.source.toLowerCase().includes(userPool)
-      );
-    }
-    filterData = sortingByUserPool(type, filterData);
-
-    setLastSnowballInfo(filterData);
+    setLastSnowballInfo(sortedData);
     setSearch('');
   };
 
   const handleSorting = (event) => {
-    let filterData = firstSnowballInfo.length
-        ? [...firstSnowballInfo]
+    let filterData = filterDataByProtocol.length
+      ? [...filterDataByProtocol]
+      : lastSnowballModifiedInfo.length
+        ? [...lastSnowballModifiedInfo]
         : [...lastSnowballInfo];
 
-    filterData = sortingByType(event.target.value, filterData);
+    let sortedData = sortingByType(event.target.value, filterData);
     if (account) {
-      filterData = sortingByUserPool(event.target.value, filterData);
+      sortedData = sortingByUserPool(event.target.value, filterData);
     }
 
-    const splittedValue = search.split(' ');
-    splittedValue.forEach((spiltItem) => {
-      filterData = filterData.filter(
-        (item) => item.name.search(spiltItem.toUpperCase()) != -1
-      );
-    });
-
-    if (userPool === 'myPools') {
-      const filteredDataWithTokensToInvested = filterData.filter((item) => {
-        const [actionType] = getProperAction(item, null, item.userLPBalance, item.usdValue);
-        return actionType === 'Deposit';
+    if(search !== "") {
+      filterData = sortedData;
+      const splittedValue = search.split(' ');
+      splittedValue.forEach((spiltItem) => {
+        filterData = filterData.filter(
+          (item) => item.name.search(spiltItem.toUpperCase()) != -1
+        );
       });
-      const filteredDataWithDepositLP = filterData.filter(
-        (item) => item.usdValue > 0
-      );
-      filterData = [
-        ...filteredDataWithDepositLP,
-        ...filteredDataWithTokensToInvested,
-      ];
-    } else if (userPool !== 'all') {
-      filterData = filterData.filter((item) =>
-        item.source.toLowerCase().includes(userPool)
-      );
-    }
-
-    setLastSnowballInfo(filterData);
+      setLastSnowballInfo(filterData);    }
+    else setLastSnowballInfo(sortedData);
     setType(event.target.value);
   };
 
   const handleUserPoolChange = (event) => {
-    let filteredData = firstSnowballInfo.length
-      ? [...firstSnowballInfo]
+    let filteredData = lastSnowballModifiedInfo.length
+      ? [...lastSnowballModifiedInfo]
       : [...snowballInfoQuery.data?.LastSnowballInfo?.poolsInfo];
 
     if (event.target.value === 'myPools') {
@@ -217,16 +185,18 @@ const CompoundAndEarn = () => {
         item.source.toLowerCase().includes(event.target.value)
       );
     }
-    let filterData = sortingByUserPool(type, filteredData);
-
-    const splittedValue = search.split(' ');
-    splittedValue.forEach((spiltItem) => {
-      filterData = filterData.filter(
-        (item) => item.name.search(spiltItem.toUpperCase()) != -1
-      );
-    });
-
-    setLastSnowballInfo(filterData);
+    const sortedData = sortingByUserPool(type, filteredData);
+    setFilterDataByProtocol(sortedData);
+    if(search !== "") {
+      let filterData = sortedData;
+      const splittedValue = search.split(' ');
+      splittedValue.forEach((spiltItem) => {
+        filterData = filterData.filter(
+          (item) => item.name.search(spiltItem.toUpperCase()) != -1
+        );
+      });
+      setLastSnowballInfo(filterData);    }
+    else setLastSnowballInfo(sortedData);
     setPool(event.target.value);
   };
 
@@ -282,7 +252,7 @@ const CompoundAndEarn = () => {
             lastSnowballInfo?.map((pool, index) => (
                 <Grid item key={index} xs={12}>
                   {(!pool.deprecatedPool || !(pool.withdrew && pool.claimed)) && 
-                    <ListItem pool={pool} />}
+                    <ListItem pool={pool} modal={modal} setModal={setModal}/>}
                 </Grid>
               ))
           )
